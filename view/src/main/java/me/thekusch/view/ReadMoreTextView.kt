@@ -156,30 +156,6 @@ open class ReadMoreTextView @JvmOverloads constructor(
         super.setText(getFinalText(),mBuffer)
     }
 
-    private fun setFinalText(): CharSequence {
-        val text = getTrimmedText()
-        if(isExpanded) {
-            val spannable = SpannableStringBuilder(text,
-                0,
-                text.length).append(anchorText)
-            return  setClickableSpan(spannable,anchorText)
-        }else {
-            val spannable = SpannableStringBuilder(text,
-                0,
-                text.length).append(anchorText)
-            return setClickableSpan(spannable,anchorText)
-        }
-
-
-    }
-
-    private fun setClickableSpan(span: SpannableStringBuilder, text: CharSequence): CharSequence{
-        span.setSpan(
-            textClickableSpan,span.length-text.length,span.length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        return span
-    }
-
     private fun getTrimmedText(): CharSequence {
         var displayText: CharSequence = ""
         if(isExpanded) {
@@ -209,6 +185,30 @@ open class ReadMoreTextView @JvmOverloads constructor(
         }
         return displayText
     }
+
+    private fun getFinalText(): CharSequence {
+        val text = getTrimmedText()
+        if(isExpanded) {
+            val spannable = SpannableStringBuilder(text,
+                0,
+                text.length).append(anchorText)
+            return  setClickableSpan(spannable,anchorText)
+        }else {
+            val spannable = SpannableStringBuilder(text,
+                0,
+                text.length).append(anchorText)
+            return setClickableSpan(spannable,anchorText)
+        }
+
+
+    }
+
+    private fun setClickableSpan(span: SpannableStringBuilder, text: CharSequence): CharSequence{
+        span.setSpan(
+            textClickableSpan,span.length-text.length,span.length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        return span
+    }
     private fun removeGlobalLayoutListener() {
         if(textMode == TextMode.LINE.ordinal) {
             viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
@@ -231,10 +231,6 @@ open class ReadMoreTextView @JvmOverloads constructor(
         }catch (e: Exception) {
             //no-op
         }
-    }
-
-    private fun getFinalText(): CharSequence {
-        return setFinalText()
     }
 
      inner class TextClickableSpan: ClickableSpan() {
