@@ -3,16 +3,21 @@ package me.thekusch.view
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.os.Build
+import android.text.Layout
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextPaint
+import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
-import android.widget.TextView
+import android.view.ViewTreeObserver
 import androidx.annotation.ColorInt
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
 import java.lang.Exception
 
 open class ReadMoreTextView @JvmOverloads constructor(
@@ -21,33 +26,36 @@ open class ReadMoreTextView @JvmOverloads constructor(
     defStyleAttr: Int = R.attr.readMoreTextView
 ) : AppCompatTextView(context, attrs, defStyleAttr) {
 
-    private var _readMoreText: String? = READ_MORE
+    private var _readMoreText: CharSequence = READ_MORE
 
-    private var _readLessText: String? = READ_LESS
+    private var _readLessText: CharSequence = READ_LESS
 
     @ColorInt
     private var _anchorTextColor: Int = getDefColor()
 
-    private var _anchorText: CharSequence? = null
-
-    private var _buffer: CharSequence? = null
-
     private var _isExpanded: Boolean = false
 
-    private var _textMode = TextMode.LENGTH
+    private var _textMode = TextMode.LINE.ordinal
 
-    private var _anchorPoint: Int = 2
+    private var _anchorPoint: Int = 20
 
-    private var textClickableSpan: TextClickableSpan? = null
+    private var mText: CharSequence? = null
 
+    private var mBuffer: BufferType? = null
 
-    var readMoreText: String?
+    private var _lineEnd: Int = 0
+
+    private var _lineCount: Int = 0
+
+    private var textClickableSpan: TextClickableSpan = TextClickableSpan()
+
+    var readMoreText: CharSequence
         get() = _readMoreText
         set(value) {
             _readMoreText = value
         }
 
-    var readLessText: String?
+    var readLessText: CharSequence
         get() = _readLessText
         set(value) {
             _readLessText = value
@@ -59,27 +67,25 @@ open class ReadMoreTextView @JvmOverloads constructor(
             _anchorTextColor = value
         }
 
-    var textMode: TextMode
+    var textMode: Int
         get() = _textMode
         set(value) {
             _textMode = value
         }
 
-    var anchorText: CharSequence?
-        get() = _anchorText
-        set(value) {
-            _anchorText = value
+    val anchorText: CharSequence
+        get(){
+            if(isExpanded) {
+                return readLessText
+            }else {
+                return readMoreText
+            }
         }
 
     var isExpanded: Boolean
         get() = _isExpanded
         set(value) {
             _isExpanded = value
-            anchorText = if(isExpanded) {
-                readLessText
-            }else {
-                readMoreText
-            }
         }
 
     var anchorPoint: Int
@@ -88,14 +94,9 @@ open class ReadMoreTextView @JvmOverloads constructor(
             _anchorPoint = value
         }
 
-    override fun setText(text: CharSequence?, type: BufferType?) {
-        super.setText(text, type)
-        _buffer = text
-    }
-
     init {
-        textClickableSpan = TextClickableSpan()
         obtainStyledAttributes(attrs, defStyleAttr)
+        setText()
     }
 
     private fun obtainStyledAttributes(attrs: AttributeSet, defStyleAttr: Int) {
@@ -110,27 +111,27 @@ open class ReadMoreTextView @JvmOverloads constructor(
             with(typedArray) {
                 readMoreText = getString(
                     R.styleable.ReadMoreTextView_readMoreText
-                )
+                ) ?: readMoreText
                 readLessText = getString(
                     R.styleable.ReadMoreTextView_readLessText
-                )
+                ) ?: readLessText
                 anchorTextColor = getColor(
                     R.styleable.ReadMoreTextView_anchorTextColor,
                     _anchorTextColor
                 )
                 isExpanded = getBoolean(
                     R.styleable.ReadMoreTextView_isExpanded,
-                    isExpanded
+                    _isExpanded
                 )
                 anchorPoint = getInt(
                     R.styleable.ReadMoreTextView_anchorPoint,
-                    anchorPoint
+                    _anchorPoint
                 )
                 textMode = if (typedArray.getInt(
                         R.styleable.ReadMoreTextView_textMode,
                         0
                     ) == 0
-                ) TextMode.LENGTH else TextMode.LINE
+                ) TextMode.LENGTH.ordinal else TextMode.LINE.ordinal
 
             }
         }catch (e: Exception) {
@@ -144,46 +145,96 @@ open class ReadMoreTextView @JvmOverloads constructor(
         return ContextCompat.getColor(context, R.color.defaultColor);
     }
 
+    override fun setText(text: CharSequence?, type: BufferType?) {
+        movementMethod = LinkMovementMethod.getInstance()
+        highlightColor = Color.TRANSPARENT
+        mText = text
+        mBuffer = type
+    }
 
-    private fun displayedText(): CharSequence {
+    private fun setText() {
+        super.setText(getFinalText(),mBuffer)
+    }
+
+    private fun setFinalText(): CharSequence {
+        val text = getTrimmedText()
+        if(isExpanded) {
+            val spannable = SpannableStringBuilder(text,
+                0,
+                text.length).append(anchorText)
+            return  setClickableSpan(spannable,anchorText)
+        }else {
+            val spannable = SpannableStringBuilder(text,
+                0,
+                text.length).append(anchorText)
+            return setClickableSpan(spannable,anchorText)
+        }
+
+
+    }
+
+    private fun setClickableSpan(span: SpannableStringBuilder, text: CharSequence): CharSequence{
+        span.setSpan(
+            textClickableSpan,span.length-text.length,span.length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        return span
+    }
+
+    private fun getTrimmedText(): CharSequence {
         var displayText: CharSequence = ""
         if(isExpanded) {
-            displayText = this.text
+            displayText = this.mText!!
         }else {
             when(textMode) {
-                TextMode.LENGTH -> {
-                    val length = this.length()
-                    if(length>anchorPoint) {
-                        displayText =  this.text.subSequence(
+                TextMode.LENGTH.ordinal -> {
+                    if(mText!!.length>anchorPoint) {
+                        displayText =  mText!!.toString().subSequence(
                             0,
                             anchorPoint
                         )
                     }
                 }
-                TextMode.LINE -> {
-                    val lines = this.lineCount
-                    if(lines > anchorPoint) {
+                TextMode.LINE.ordinal -> {
+                    val lineCount = this.layout.lineCount
+                    if(lineCount > anchorPoint) {
                         val lineEndIndex = this.layout.getLineEnd(anchorPoint)
-                        displayText =  this.text.subSequence(
+                        displayText =  mText!!.toString().subSequence(
                             0,
-                            lineEndIndex - anchorText!!.length
+                            _lineEnd - anchorText.length
                         )
                     }
+
                 }
             }
         }
         return displayText
     }
+    private fun removeGlobalLayoutListener() {
+        if(textMode == TextMode.LINE.ordinal) {
+            viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    setLineEndIndex()
+                }
+            })
+        }
+    }
+    private fun setLineEndIndex() {
+        try {
+            if(anchorPoint == 0){
+                _lineEnd = layout.getLineEnd(0)
+            }else if(lineCount > anchorPoint) {
+                _lineEnd = layout.getLineEnd(anchorPoint-1)
+            }else{
+                _lineEnd = INVALID_LINE_END
+            }
+        }catch (e: Exception) {
+            //no-op
+        }
+    }
 
-    private fun setText() {
-        val finalText = StringBuilder().append(displayedText()).append(anchorText)
-        val spannable = SpannableStringBuilder(finalText)
-        spannable.setSpan(
-            textClickableSpan,
-            displayedText().length-1,
-            displayedText().length-1+anchorText!!.length,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-
+    private fun getFinalText(): CharSequence {
+        return setFinalText()
     }
 
      inner class TextClickableSpan: ClickableSpan() {
@@ -198,8 +249,9 @@ open class ReadMoreTextView @JvmOverloads constructor(
     }
 
     companion object {
-        const val READ_LESS = "Read Less.."
-        const val READ_MORE = "Read More.."
+        val READ_LESS: CharSequence = " Read Less.."
+        val READ_MORE: CharSequence = " Read More.."
+        const val INVALID_LINE_END = -999
         enum class TextMode {
             LENGTH, LINE
         }
