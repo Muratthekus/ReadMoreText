@@ -17,7 +17,7 @@ A custom text view with abilities to trim text according to the length or line v
 ```
 
 ### Implementation
-```
+```gradle
 allprojects {
 	repositories {
 	    ...
@@ -26,7 +26,7 @@ allprojects {
 }
 
 dependencies {
-        implementation 'com.github.Muratthekus:ReadMoreText:Tag'
+        implementation 'com.github.Muratthekus:ReadMoreText:v1.0'
 }
 ```
 
