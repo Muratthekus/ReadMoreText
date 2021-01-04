@@ -177,8 +177,6 @@ open class ReadMoreTextView @JvmOverloads constructor(
                             0,
                             _lineEnd - anchorText.length
                         )
-                    }else {
-                        isExpanded = true
                     }
                 }
             }
