@@ -26,7 +26,7 @@ allprojects {
 }
 
 dependencies {
-        implementation 'com.github.Muratthekus:ReadMoreText:v1.0'
+        implementation 'com.github.Muratthekus:ReadMoreText:v1.1'
 }
 ```
 
